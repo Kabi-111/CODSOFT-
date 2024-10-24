@@ -1,0 +1,52 @@
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.applications import ResNet50
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.layers import Input, Dense, LSTM, Embedding, Dropout, Add
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.applications.resnet50 import preprocess_input
+from tensorflow.keras.preprocessing.image import load_img, img_to_array
+
+def build_feature_extractor():
+    base_model = ResNet50(weights='imagenet', include_top=False, pooling='avg')
+    return Model(inputs=base_model.input, outputs=base_model.output)
+
+def extract_features(image_path, model):
+    img = load_img(image_path, target_size=(224, 224))  # Resize image
+    img = img_to_array(img)
+    img = np.expand_dims(img, axis=0)
+    img = preprocess_input(img)
+    features = model.predict(img, verbose=0)
+    return features
+
+def build_caption_model(vocab_size, max_length):
+    inputs1 = Input(shape=(2048,))
+    fe1 = Dropout(0.5)(inputs1)
+    fe2 = Dense(256, activation='relu')(fe1)
+
+    inputs2 = Input(shape=(max_length,))
+    se1 = Embedding(vocab_size, 256, mask_zero=True)(inputs2)
+    se2 = Dropout(0.5)(se1)
+    se3 = LSTM(256)(se2)
+
+    decoder1 = Add()([fe2, se3])
+    decoder2 = Dense(256, activation='relu')(decoder1)
+    outputs = Dense(vocab_size, activation='softmax')(decoder2)
+    
+    model = Model(inputs=[inputs1, inputs2], outputs=outputs)
+    model.compile(loss='categorical_crossentropy', optimizer='adam')
+    return model
+
+feature_extractor = build_feature_extractor()
+
+image_path = "C:\\Users\\kabib\\OneDrive\\Desktop\\Featured-image-AI-image-generators-by-Midjourney.nlp.webp"
+image_features = extract_features(image_path, feature_extractor)
+
+vocab_size = 5000  
+max_length = 30    
+
+caption_model = build_caption_model(vocab_size, max_length)
+
+caption_model.summary()
